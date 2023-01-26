@@ -51,18 +51,18 @@ def default_box_generator(layers, large_scale, small_scale):
             layer_index = layers.index(layer)
             x_center = row/(2*layer)
             y_center = col/(2*layer)
-            width = small_scale[layer_index]
-            height = small_scale[layer_index]
-            boxes[index+i][0] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
-            width = large_scale[layer_index]
-            height = large_scale[layer_index]
-            boxes[index+i][1] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
-            width = large_scale[layer_index]*sqrt2
-            height = large_scale[layer_index]/sqrt2
-            boxes[index+i][2] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
-            width = large_scale[layer_index]/sqrt2
-            height = large_scale[layer_index]*sqrt2
-            boxes[index+i][3] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+            width = clip(small_scale[layer_index])
+            height = clip(small_scale[layer_index])
+            boxes[index+i][0] = [x_center, y_center, width, height, clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+            width = clip(large_scale[layer_index])
+            height = clip(large_scale[layer_index])
+            boxes[index+i][1] = [x_center, y_center, width, height, clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+            width = clip(large_scale[layer_index]*sqrt2)
+            height = clip(large_scale[layer_index]/sqrt2)
+            boxes[index+i][2] = [x_center, y_center, width, height, clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+            width = clip(large_scale[layer_index]/sqrt2)
+            height = clip(large_scale[layer_index]*sqrt2)
+            boxes[index+i][3] = [x_center, y_center, width, height, clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
         index += layer*layer
     return boxes
 
