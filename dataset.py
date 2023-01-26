@@ -12,6 +12,14 @@ import numpy as np
 import os
 import cv2
 
+def clip(value):
+    if value < 0:
+        return 0
+    elif value > 1:
+        return 1
+    else:
+        return value
+
 #generate default bounding boxes
 def default_box_generator(layers, large_scale, small_scale):
     #input:
@@ -30,8 +38,32 @@ def default_box_generator(layers, large_scale, small_scale):
     #their sizes are [ssize,ssize], [lsize,lsize], [lsize*sqrt(2),lsize/sqrt(2)], [lsize/sqrt(2),lsize*sqrt(2)],
     #where ssize is the corresponding size in "small_scale" and lsize is the corresponding size in "large_scale".
     #for a cell in layer[i], you should use ssize=small_scale[i] and lsize=large_scale[i].
-    #the last dimension 8 means each default bounding box has 8 attributes: [x_center, y_center, box_width, box_height, x_min, y_min, x_max, y_max]
-    
+    #the last dimension 8 means each default bounding box has 8 attributes: [x_center, y_center, box_width, box_height, x_min, y_min, x_max, y_max]           
+    num_layers = 4
+    num_scales = 4
+    sqrt2 = 1.41421356
+    boxes = np.zeros((10*10+5*5+3*3+1*1,4,8))
+    index = 0
+    for layer in layers:
+        for i in range(layer*layer):
+            row = i//layer + 1
+            col = i%layer + 1
+            layer_index = layers.index(layer)
+            x_center = row/(2*layer)
+            y_center = col/(2*layer)
+            width = small_scale[layer_index]
+            height = small_scale[layer_index]
+            boxes[index+i][0] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+            width = large_scale[layer_index]
+            height = large_scale[layer_index]
+            boxes[index+i][1] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+            width = large_scale[layer_index]*sqrt2
+            height = large_scale[layer_index]/sqrt2
+            boxes[index+i][2] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+            width = large_scale[layer_index]/sqrt2
+            height = large_scale[layer_index]*sqrt2
+            boxes[index+i][3] = [x_center, y_center, width, small_scale[layer_index], clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
+        index += layer*layer
     return boxes
 
 
