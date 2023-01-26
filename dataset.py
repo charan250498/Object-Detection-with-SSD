@@ -64,6 +64,8 @@ def default_box_generator(layers, large_scale, small_scale):
             height = clip(large_scale[layer_index]*sqrt2)
             boxes[index+i][3] = [x_center, y_center, width, height, clip(x_center-width/2), clip(y_center-height/2), clip(x_center+width/2), clip(y_center+height/2)]
         index += layer*layer
+
+    boxes = boxes.reshape(((10*10+5*5+3*3+1*1)*4,8))
     return boxes
 
 
@@ -86,7 +88,7 @@ def iou(boxs_default, x_min,y_min,x_max,y_max):
 
 
 
-def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max,y_max):
+def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,gx,gy,gw,gh):
     #input:
     #ann_box                 -- [num_of_boxes,4], ground truth bounding boxes to be updated
     #ann_confidence          -- [num_of_boxes,number_of_classes], ground truth class labels to be updated
@@ -96,6 +98,7 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
     #x_min,y_min,x_max,y_max -- bounding box
     
     #compute iou between the default bounding boxes and the ground truth bounding box
+    x_min,y_min,x_max,y_max = gx-(gw/2), gy-(gh/2), gx+(gw/2), gy+(gh/2)
     ious = iou(boxs_default, x_min,y_min,x_max,y_max)
     
     ious_true = ious>threshold
@@ -103,11 +106,27 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
     #update ann_box and ann_confidence, with respect to the ious and the default bounding boxes.
     #if a default bounding box and the ground truth bounding box have iou>threshold, then we will say this default bounding box is carrying an object.
     #this default bounding box will be used to update the corresponding entry in ann_box and ann_confidence
+    object_category = np.zeros((1,4))
+    object_category[cat_id] = 1
+    ann_confidence[ious_true] = object_category
+
+    ann_box[ious_true][0] = (gx - boxs_default[ious_true][0])/boxs_default[ious_true][2]
+    ann_box[ious_true][1] = (gy - boxs_default[ious_true][1])/boxs_default[ious_true][3]
+
+    ann_box[ious_true][2] = np.log(gw/boxs_default[ious_true][2])
+    ann_box[ious_true][3] = np.log(gh/boxs_default[ious_true][3])
     
     ious_true = np.argmax(ious)
     #TODO:
     #make sure at least one default bounding box is used
     #update ann_box and ann_confidence (do the same thing as above)
+    ann_confidence[ious_true] = object_category
+
+    ann_box[ious_true][0] = (gx - boxs_default[ious_true][0])/boxs_default[ious_true][2]
+    ann_box[ious_true][1] = (gy - boxs_default[ious_true][1])/boxs_default[ious_true][3]
+
+    ann_box[ious_true][2] = np.log(gw/boxs_default[ious_true][2])
+    ann_box[ious_true][3] = np.log(gh/boxs_default[ious_true][3])
 
 
 
@@ -125,9 +144,15 @@ class COCO(torch.utils.data.Dataset):
         
         self.img_names = os.listdir(self.imgdir)
         self.image_size = image_size
+
+        self.transform = transforms.Compose([transforms.ToTensor()])
         
         #notice:
         #you can split the dataset into 90% training and 10% validation here, by slicing self.img_names with respect to self.train
+        if self.train:
+            self.img_names = self.img_names[:int(0.9*len(self.img_names))]
+        else:
+            self.img_names = self.img_names[int(0.1*len(self.img_names)):]
 
     def __len__(self):
         return len(self.img_names)
@@ -148,9 +173,28 @@ class COCO(torch.utils.data.Dataset):
         
         #TODO:
         #1. prepare the image [3,320,320], by reading image "img_name" first.
+        image = cv2.imread(img_name)
+        height, width, _ = image.shape
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.resize(image, self.image_size, interpolation = cv2.INTER_AREA)
+        image = self.transform(image)
+
         #2. prepare ann_box and ann_confidence, by reading txt file "ann_name" first.
+        fhand = open(ann_name, "r")
+        contents = fhand.read()
+        contents = contents.split(" ")
+
+        # Normalized wrt to height and width
+        class_id = int(contents[0])
+        gx,gy,gw,gh = [float(contents[1])/width, float(contents[2])/height, float(contents[3])/width, float(contents[4])/height]
+
         #3. use the above function "match" to update ann_box and ann_confidence, for each bounding box in "ann_name".
+        match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,gx,gy,gw,gh)
+
         #4. Data augmentation. You need to implement random cropping first. You can try adding other augmentations to get better results.
+        ##########################################
+        # CHARAN:TODO - DO DATA AUGMENTATION LATER
+        ##########################################
         
         #to use function "match":
         #match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
