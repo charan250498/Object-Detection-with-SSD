@@ -44,8 +44,8 @@ cudnn.benchmark = True
 
 
 if not args.test:
-    dataset = COCO("data/train/images/", "data/train/annotations/", class_num, boxs_default, train = True, image_size=320)
-    dataset_test = COCO("data/train/images/", "data/train/annotations/", class_num, boxs_default, train = False, image_size=320)
+    dataset = COCO("data/data/train/images/", "data/data/train/annotations/", class_num, boxs_default, train = True, image_size=320)
+    dataset_test = COCO("data/data/train/images/", "data/data/train/annotations/", class_num, boxs_default, train = False, image_size=320)
     
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=batch_size, shuffle=True, num_workers=0)
