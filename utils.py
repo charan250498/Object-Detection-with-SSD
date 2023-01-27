@@ -50,7 +50,14 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
                 #color = colors[j] #use red green blue to represent different classes
                 #thickness = 2
                 #cv2.rectangle(image?, start_point, end_point, color, thickness)
-                pass
+                start_point = (ann_box[i][0]-(ann_box[i][2]/2), ann_box[i][1]-(ann_box[i][3]/2))
+                end_point = (ann_box[i][0]+(ann_box[i][2]/2), ann_box[i][1]+(ann_box[i][3]/2))
+                color = colors[1]
+                thickness = 2
+                cv2.rectangle(image3, start_point, end_point, color, thickness)
+
+                cv2.rectangle(image4, start_point, end_point, color, thickness)
+
     
     #pred
     for i in range(len(pred_confidence)):
@@ -59,7 +66,13 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
                 #TODO:
                 #image3: draw network-predicted bounding boxes on image3
                 #image4: draw network-predicted "default" boxes on image4 (to show which cell does your network think that contains an object)
-                pass
+                start_point = (pred_box[i][0]-(pred_box[i][2]/2), pred_box[i][1]-(pred_box[i][3]/2))
+                end_point = (pred_box[i][0]+(pred_box[i][2]/2), pred_box[i][1]+(pred_box[i][3]/2))
+                color = colors[0]
+                thickness = 2
+                cv2.rectangle(image1, start_point, end_point, color, thickness)
+                
+                cv2.rectangle(image2, start_point, end_point, color, thickness)
     
     #combine four images into one
     h,w,_ = image1.shape
@@ -88,7 +101,34 @@ def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.5, thresh
     #depends on your implementation.
     #if you wish to reuse the visualize_pred function above, you need to return a "suppressed" version of confidence [5,5, num_of_classes].
     #you can also directly return the final bounding boxes and classes, and write a new visualization function for that.
-    pass
+    filtered_indices = []
+
+    cat_highest_prob_index = np.argmax(confidence_[:, 0])
+    dog_highest_prob_index = np.argmax(confidence_[:, 1])
+    person_highest_prob_index = np.argmax(confidence_[:, 2])
+    if cat_highest_prob_index < threshold or dog_highest_prob_index < threshold or person_highest_prob_index < threshold:
+        return None, None
+    filtered_indices.extend([cat_highest_prob_index, dog_highest_prob_index, person_highest_prob_index])
+
+    return confidence_[filtered_indices], box_[filtered_indices]
+
+    # for index in range(len(box_)):
+    #     if confidence_[index][0] > threshold:
+    #         pass
+    #     elif confidence_[index][1] > threshold:
+    #         pass
+    #     elif confidence_[index][2] > threshold:
+    #         pass
+    #     else:
+    #         pass
+
+
+    # for i in range(len(confidence_)):
+    #     for j in range(4):
+    #         if confidence_[i,j] > threshold:
+    #             filtered_boxes.append(box_[i])
+
+
 
 def generate_mAP():
     #TODO: Generate mAP

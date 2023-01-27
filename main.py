@@ -31,7 +31,7 @@ args = parser.parse_args()
 class_num = 4 #cat dog person background
 
 num_epochs = 100
-batch_size = 32
+batch_size = 16
 
 
 boxs_default = default_box_generator([10,5,3,1], [0.2,0.4,0.6,0.8], [0.1,0.3,0.5,0.7])
@@ -75,6 +75,8 @@ if not args.test:
             
             avg_loss += loss_net.data
             avg_count += 1
+
+            print(i)
 
         print('[%d] time: %f train loss: %f' % (epoch, time.time()-start_time, avg_loss/avg_count))
         
@@ -122,7 +124,7 @@ if not args.test:
 
 else:
     #TEST
-    dataset_test = COCO("data/test/images/", "data/test/annotations/", class_num, boxs_default, train = False, image_size=320)
+    dataset_test = COCO("data/data/test/images/", "data/data/test/annotations/", class_num, boxs_default, train = False, image_size=320)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=0)
     network.load_state_dict(torch.load('network.pth'))
     network.eval()
@@ -142,6 +144,8 @@ else:
         
         #TODO: save predicted bounding boxes and classes to a txt file.
         #you will need to submit those files for grading this assignment
+        print(pred_box_.shape)
+        print(pred_confidence.shape)
         
         visualize_pred("test", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default)
         cv2.waitKey(1000)
