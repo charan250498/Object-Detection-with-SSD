@@ -106,15 +106,15 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,gx,gy,gw,gh):
     #update ann_box and ann_confidence, with respect to the ious and the default bounding boxes.
     #if a default bounding box and the ground truth bounding box have iou>threshold, then we will say this default bounding box is carrying an object.
     #this default bounding box will be used to update the corresponding entry in ann_box and ann_confidence
-    object_category = np.zeros((1,4))
+    object_category = np.zeros(4)
     object_category[cat_id] = 1
     ann_confidence[ious_true] = object_category
 
-    ann_box[ious_true][0] = (gx - boxs_default[ious_true][0])/boxs_default[ious_true][2]
-    ann_box[ious_true][1] = (gy - boxs_default[ious_true][1])/boxs_default[ious_true][3]
+    ann_box[ious_true][:, 0] = (gx - boxs_default[ious_true][:, 0])/boxs_default[ious_true][:, 2]
+    ann_box[ious_true][:, 1] = (gy - boxs_default[ious_true][:, 1])/boxs_default[ious_true][:, 3]
 
-    ann_box[ious_true][2] = np.log(gw/boxs_default[ious_true][2])
-    ann_box[ious_true][3] = np.log(gh/boxs_default[ious_true][3])
+    ann_box[ious_true][:, 2] = np.log(gw/boxs_default[ious_true][:, 2])
+    ann_box[ious_true][:, 3] = np.log(gh/boxs_default[ious_true][:, 3])
     
     ious_true = np.argmax(ious)
     #TODO:
@@ -176,20 +176,25 @@ class COCO(torch.utils.data.Dataset):
         image = cv2.imread(img_name)
         height, width, _ = image.shape
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = cv2.resize(image, self.image_size, interpolation = cv2.INTER_AREA)
+        image = cv2.resize(image, (self.image_size, self.image_size), interpolation = cv2.INTER_AREA)
         image = self.transform(image)
 
         #2. prepare ann_box and ann_confidence, by reading txt file "ann_name" first.
         fhand = open(ann_name, "r")
         contents = fhand.read()
-        contents = contents.split(" ")
+
+        contents = contents.split("\n")
+        for content in contents:
+            if len(content) < 1: # When you split the empty string after \n also get added to the list, so this if case will eliminate that case.
+                continue
+            content = content.split(" ")
 
         # Normalized wrt to height and width
-        class_id = int(contents[0])
-        gx,gy,gw,gh = [float(contents[1])/width, float(contents[2])/height, float(contents[3])/width, float(contents[4])/height]
+            class_id = int(content[0])
+            gx,gy,gw,gh = [float(content[1])/width, float(content[2])/height, float(content[3])/width, float(content[4])/height]
 
         #3. use the above function "match" to update ann_box and ann_confidence, for each bounding box in "ann_name".
-        match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,gx,gy,gw,gh)
+            match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,gx,gy,gw,gh)
 
         #4. Data augmentation. You need to implement random cropping first. You can try adding other augmentations to get better results.
         ##########################################
