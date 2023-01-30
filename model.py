@@ -65,7 +65,7 @@ class SSD(nn.Module):
         #TODO: define layers
         layer_count = 1
         channels = [64,128,256,512]
-        self.layers_set_1 = [("conv"+str(layer_count), nn.Conv2d(3,64,3,2,bias=True)), ("batchnorm"+str(layer_count), nn.BatchNorm2d(64)), ("relu"+str(layer_count), nn.ReLU())]
+        self.layers_set_1 = [("conv"+str(layer_count), nn.Conv2d(3,64,3,2,bias=True, padding=1, padding_mode='zeros')), ("batchnorm"+str(layer_count), nn.BatchNorm2d(64)), ("relu"+str(layer_count), nn.ReLU())]
         layer_count += 1
         for channel in channels:
             self.layers_set_1.extend([("conv"+str(layer_count), nn.Conv2d(channel, channel, 3, 1, bias=True, padding=1, padding_mode='zeros')), 
@@ -84,7 +84,7 @@ class SSD(nn.Module):
         
         self.layers_set_1 = nn.Sequential(OrderedDict(self.layers_set_1))
         self.layers_set_2 = nn.Sequential(nn.Conv2d(256, 256, 1, 1, bias=True), nn.BatchNorm2d(256), nn.ReLU(),
-                                nn.Conv2d(256, 256, 2, 2, bias=True), nn.BatchNorm2d(256), nn.ReLU()) ###################### CHARAN : TODO - modified the kernel size to 2.
+                                nn.Conv2d(256, 256, 3, 2, bias=True, padding=1, padding_mode='zeros'), nn.BatchNorm2d(256), nn.ReLU()) ###################### CHARAN : TODO - modified the kernel size to 2.
         self.layers_set_3 = nn.Sequential(nn.Conv2d(256, 256, 1, 1, bias=True), nn.BatchNorm2d(256), nn.ReLU(),
                                 nn.Conv2d(256, 256, 3, 1, bias=True), nn.BatchNorm2d(256), nn.ReLU())
         self.layers_set_4 = nn.Sequential(nn.Conv2d(256, 256, 1, 1, bias=True), nn.BatchNorm2d(256), nn.ReLU(),
