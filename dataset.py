@@ -106,27 +106,39 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,gx,gy,gw,gh):
     #update ann_box and ann_confidence, with respect to the ious and the default bounding boxes.
     #if a default bounding box and the ground truth bounding box have iou>threshold, then we will say this default bounding box is carrying an object.
     #this default bounding box will be used to update the corresponding entry in ann_box and ann_confidence
-    object_category = np.zeros(4)
-    object_category[cat_id] = 1
-    ann_confidence[ious_true] = object_category
+    for i in range(len(ann_confidence)):
+        if ious_true[i]:
+            ann_confidence[i][-1] = 0
+            ann_confidence[i][cat_id] = 1
 
-    ann_box[ious_true][:, 0] = (gx - boxs_default[ious_true][:, 0])/boxs_default[ious_true][:, 2]
-    ann_box[ious_true][:, 1] = (gy - boxs_default[ious_true][:, 1])/boxs_default[ious_true][:, 3]
+    for i in range(len(ann_box)):
+        if ious_true[i]:
+            ann_box[i][0] = (gx - boxs_default[i][0])/boxs_default[i][2]
+            ann_box[i][1] = (gy - boxs_default[i][1])/boxs_default[i][3]
+            ann_box[i][2] = np.log(gw/boxs_default[i][2])
+            ann_box[i][3] = np.log(gh/boxs_default[i][3])
 
-    ann_box[ious_true][:, 2] = np.log(gw/boxs_default[ious_true][:, 2])
-    ann_box[ious_true][:, 3] = np.log(gh/boxs_default[ious_true][:, 3])
+    # Previous code.
+    # ann_box[ious_true][:, 0] = (gx - boxs_default[ious_true][:, 0])/boxs_default[ious_true][:, 2]
+    # ann_box[ious_true][:, 1] = (gy - boxs_default[ious_true][:, 1])/boxs_default[ious_true][:, 3]
+
+    # ann_box[ious_true][:, 2] = np.log(gw/boxs_default[ious_true][:, 2])
+    # ann_box[ious_true][:, 3] = np.log(gh/boxs_default[ious_true][:, 3])
     
     ious_true = np.argmax(ious)
     #TODO:
     #make sure at least one default bounding box is used
     #update ann_box and ann_confidence (do the same thing as above)
-    ann_confidence[ious_true] = object_category
+    ann_confidence[ious_true][cat_id] = 1
+    ann_confidence[ious_true][-1] = 0
 
     ann_box[ious_true][0] = (gx - boxs_default[ious_true][0])/boxs_default[ious_true][2]
     ann_box[ious_true][1] = (gy - boxs_default[ious_true][1])/boxs_default[ious_true][3]
 
     ann_box[ious_true][2] = np.log(gw/boxs_default[ious_true][2])
     ann_box[ious_true][3] = np.log(gh/boxs_default[ious_true][3])
+
+    return ann_box, ann_confidence
 
 
 
@@ -152,7 +164,7 @@ class COCO(torch.utils.data.Dataset):
         if self.train:
             self.img_names = self.img_names[:int(0.9*len(self.img_names))]
         else:
-            self.img_names = self.img_names[int(0.1*len(self.img_names)):]
+            self.img_names = self.img_names[int(0.9*len(self.img_names)):]
 
     def __len__(self):
         return len(self.img_names)
@@ -174,10 +186,13 @@ class COCO(torch.utils.data.Dataset):
         #TODO:
         #1. prepare the image [3,320,320], by reading image "img_name" first.
         image = cv2.imread(img_name)
-        height, width, _ = image.shape
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        height, width, channel = image.shape
         image = cv2.resize(image, (self.image_size, self.image_size), interpolation = cv2.INTER_AREA)
         image = self.transform(image)
+
+        if channel == 1:
+            image = torch.cat((image, image, image), axis=2)
+            print("Channel was 1")
 
         #2. prepare ann_box and ann_confidence, by reading txt file "ann_name" first.
         fhand = open(ann_name, "r")
@@ -191,10 +206,10 @@ class COCO(torch.utils.data.Dataset):
 
         # Normalized wrt to height and width
             class_id = int(content[0])
-            gx,gy,gw,gh = [float(content[1])/width, float(content[2])/height, float(content[3])/width, float(content[4])/height]
+            gx,gy,gw,gh = [(float(content[1]) + float(content[3])/2)/width, (float(content[2]) + float(content[4])/2)/height, float(content[3])/width, float(content[4])/height]
 
         #3. use the above function "match" to update ann_box and ann_confidence, for each bounding box in "ann_name".
-            match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,gx,gy,gw,gh)
+            ann_box, ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,gx,gy,gw,gh)
 
         #4. Data augmentation. You need to implement random cropping first. You can try adding other augmentations to get better results.
         ##########################################

@@ -156,7 +156,7 @@ class SSD(nn.Module):
         confidence = torch.cat((dimension_10_output_right, dimension_5_output_right, dimension_3_output_right, dimension_1_output_right), dim = 2)
         confidence = torch.permute(confidence, (0, 2, 1))
         confidence = confidence.reshape(confidence.shape[0], 540, 4)
-        
+
         #should you apply softmax to confidence? (search the pytorch tutorial for F.cross_entropy.) If yes, which dimension should you apply softmax?
         
         #sanity check: print the size/shape of the confidence and bboxes, make sure they are as follows:

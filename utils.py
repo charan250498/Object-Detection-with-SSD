@@ -6,7 +6,7 @@ from dataset import iou
 colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
 #use [blue green red] to represent different classes
 
-def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_box, image_, boxs_default):
+def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_box, image_, boxs_default, nms_confidence = None):
     #input:
     #windowname      -- the name of the window to display the images
     #pred_confidence -- the predicted class labels from SSD, [num_of_boxes, num_of_classes]
@@ -15,13 +15,25 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
     #ann_box         -- the ground truth bounding boxes, [num_of_boxes, 4]
     #image_          -- the input image to the network
     #boxs_default    -- default bounding boxes, [num_of_boxes, 8]
+
+    # We need to change the box's relative values to absolute values here.
+    #### COMMENTED FOR NOW AS THIS IS DONE EVEN BEFORE THE CALL TO THIS HAPPENS ####
+    ann_box[:, 0] = boxs_default[:, 2] * ann_box[:, 0] + boxs_default[:, 0]
+    ann_box[:, 1] = boxs_default[:, 3] * ann_box[:, 1] + boxs_default[:, 1]
+    ann_box[:, 2] = boxs_default[:, 2] * np.exp(ann_box[:, 2])
+    ann_box[:, 3] = boxs_default[:, 3] * np.exp(ann_box[:, 3])
+
+    pred_box[:, 0] = boxs_default[:, 2] * pred_box[:, 0] + boxs_default[:, 0]
+    pred_box[:, 1] = boxs_default[:, 3] * pred_box[:, 1] + boxs_default[:, 1]
+    pred_box[:, 2] = boxs_default[:, 2] * np.exp(pred_box[:, 2])
+    pred_box[:, 3] = boxs_default[:, 3] * np.exp(pred_box[:, 3])
     
     _, class_num = pred_confidence.shape
     #class_num = 4
     class_num = class_num-1
     #class_num = 3 now, because we do not need the last class (background)
     
-    image = np.transpose(image_, (1,2,0)).astype(np.uint8)
+    image = np.transpose(image_*255, (1,2,0)).astype(np.uint8)
     image1 = np.zeros(image.shape,np.uint8)
     image2 = np.zeros(image.shape,np.uint8)
     image3 = np.zeros(image.shape,np.uint8)
@@ -34,12 +46,19 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
     #image2: draw ground truth "default" boxes on image2 (to show that you have assigned the object to the correct cell/cells)
     #image3: draw network-predicted bounding boxes on image3
     #image4: draw network-predicted "default" boxes on image4 (to show which cell does your network think that contains an object)
-    
+    default_boxes = boxs_default[:, :]
+    # if filtered_indices != None:
+    #     default_boxes = boxs_default[filtered_indices]
+    try:
+        if None == nms_confidence:
+            nms_confidence = pred_confidence.copy()
+    except:
+        pass
     
     #draw ground truth
     for i in range(len(ann_confidence)):
         for j in range(class_num):
-            if ann_confidence[i,j]>0.5: #if the network/ground_truth has high confidence on cell[i] with class[j]
+            if ann_confidence[i,j]>0.5: #if the network/ground_truth has high confidence on cell[i] with class[j] ######################## Changed from 0.5 to 0.9
                 #TODO:
                 #image1: draw ground truth bounding boxes on image1
                 #image2: draw ground truth "default" boxes on image2 (to show that you have assigned the object to the correct cell/cells)
@@ -50,29 +69,39 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
                 #color = colors[j] #use red green blue to represent different classes
                 #thickness = 2
                 #cv2.rectangle(image?, start_point, end_point, color, thickness)
-                start_point = (ann_box[i][0]-(ann_box[i][2]/2), ann_box[i][1]-(ann_box[i][3]/2))
-                end_point = (ann_box[i][0]+(ann_box[i][2]/2), ann_box[i][1]+(ann_box[i][3]/2))
-                color = colors[1]
+                start_point = (int((ann_box[i][0]-(ann_box[i][2]/2)) * 320), int((ann_box[i][1]-(ann_box[i][3]/2)) * 320))
+                end_point = (int((ann_box[i][0]+(ann_box[i][2]/2)) * 320), int((ann_box[i][1]+(ann_box[i][3]/2)) * 320))
+                color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
                 thickness = 2
-                cv2.rectangle(image3, start_point, end_point, color, thickness)
+                cv2.rectangle(image1, start_point, end_point, color, thickness)
 
-                cv2.rectangle(image4, start_point, end_point, color, thickness)
+
+                start_point = (int((boxs_default[i][0]-(boxs_default[i][2]/2)) * 320), int((boxs_default[i][1]-(boxs_default[i][3]/2)) * 320))
+                end_point = (int((boxs_default[i][0]+(boxs_default[i][2]/2)) * 320), int((boxs_default[i][1]+(boxs_default[i][3]/2)) * 320))
+                color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
+                thickness = 2
+                cv2.rectangle(image2, start_point, end_point, color, thickness)
 
     
     #pred
     for i in range(len(pred_confidence)):
         for j in range(class_num):
-            if pred_confidence[i,j]>0.5:
+            if nms_confidence[i,j]>0.5:
                 #TODO:
                 #image3: draw network-predicted bounding boxes on image3
                 #image4: draw network-predicted "default" boxes on image4 (to show which cell does your network think that contains an object)
-                start_point = (pred_box[i][0]-(pred_box[i][2]/2), pred_box[i][1]-(pred_box[i][3]/2))
-                end_point = (pred_box[i][0]+(pred_box[i][2]/2), pred_box[i][1]+(pred_box[i][3]/2))
-                color = colors[0]
+                start_point = (int((pred_box[i][0]-(pred_box[i][2]/2)) * 320), int((pred_box[i][1]-(pred_box[i][3]/2)) * 320))
+                end_point = (int((pred_box[i][0]+(pred_box[i][2]/2)) * 320), int((pred_box[i][1]+(pred_box[i][3]/2)) * 320))
+                color = colors[j]
                 thickness = 2
-                cv2.rectangle(image1, start_point, end_point, color, thickness)
-                
-                cv2.rectangle(image2, start_point, end_point, color, thickness)
+                cv2.rectangle(image3, start_point, end_point, color, thickness)
+            
+            if pred_confidence[i,j]>0.5:
+                start_point = (int((default_boxes[i][0]-(default_boxes[i][2]/2)) * 320), int((default_boxes[i][1]-(default_boxes[i][3]/2)) * 320))
+                end_point = (int((default_boxes[i][0]+(default_boxes[i][2]/2)) * 320), int((default_boxes[i][1]+(default_boxes[i][3]/2)) * 320))
+                color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
+                thickness = 2
+                cv2.rectangle(image4, start_point, end_point, color, thickness)
     
     #combine four images into one
     h,w,_ = image1.shape
@@ -88,7 +117,7 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
 
 
 
-def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.5, threshold=0.5):
+def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.2, threshold=0.5):
     #TODO: non maximum suppression
     #input:
     #confidence_  -- the predicted class labels from SSD, [num_of_boxes, num_of_classes]
@@ -101,34 +130,48 @@ def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.5, thresh
     #depends on your implementation.
     #if you wish to reuse the visualize_pred function above, you need to return a "suppressed" version of confidence [5,5, num_of_classes].
     #you can also directly return the final bounding boxes and classes, and write a new visualization function for that.
-    filtered_indices = []
 
-    cat_highest_prob_index = np.argmax(confidence_[:, 0])
-    dog_highest_prob_index = np.argmax(confidence_[:, 1])
-    person_highest_prob_index = np.argmax(confidence_[:, 2])
-    if cat_highest_prob_index < threshold or dog_highest_prob_index < threshold or person_highest_prob_index < threshold:
-        return None, None
-    filtered_indices.extend([cat_highest_prob_index, dog_highest_prob_index, person_highest_prob_index])
+    conf1 = confidence_.copy() # Use this as A
+    conf2 = np.zeros_like(confidence_) # Use this as B
 
-    return confidence_[filtered_indices], box_[filtered_indices]
+    boxes = box_.copy()
+    boxes[:, 0] = boxs_default[:, 2] * boxes[:, 0] + boxs_default[:, 0]
+    boxes[:, 1] = boxs_default[:, 3] * boxes[:, 1] + boxs_default[:, 1]
+    boxes[:, 2] = boxs_default[:, 2] * np.exp(boxes[:, 2])
+    boxes[:, 3] = boxs_default[:, 3] * np.exp(boxes[:, 3])
 
-    # for index in range(len(box_)):
-    #     if confidence_[index][0] > threshold:
-    #         pass
-    #     elif confidence_[index][1] > threshold:
-    #         pass
-    #     elif confidence_[index][2] > threshold:
-    #         pass
-    #     else:
-    #         pass
-
-
-    # for i in range(len(confidence_)):
-    #     for j in range(4):
-    #         if confidence_[i,j] > threshold:
-    #             filtered_boxes.append(box_[i])
-
-
+    while(True):
+        # 1. Find the max probability indices for each class
+        max_prob_indices = [0 for i in range(3)]
+        for i in range(len(confidence_)):
+            for j in range(3):
+                if conf1[max_prob_indices[j]][j] < conf1[i][j]:
+                    max_prob_indices[j] = i
+        # 2. Check if they are greater than threshold or not.
+        if conf1[max_prob_indices[0]][0] < threshold and conf1[max_prob_indices[1]][1] < threshold and conf1[max_prob_indices[2]][2] < threshold:
+            break
+        # 3. Move the max values from A to B.
+        conf2[max_prob_indices[0]][0] = conf1[max_prob_indices[0]][0]
+        conf2[max_prob_indices[1]][1] = conf1[max_prob_indices[1]][1]
+        conf2[max_prob_indices[2]][2] = conf1[max_prob_indices[2]][2]
+        conf1[max_prob_indices[0]][0] = 0
+        conf1[max_prob_indices[1]][1] = 0
+        conf1[max_prob_indices[2]][2] = 0
+        # 4. for all boxes in A check IOU with the ones in B, and remove those which overlap.
+        for i in range(len(conf1)):
+            for class_index in range(3):
+                j = max_prob_indices[class_index]
+                if i == j:
+                    continue
+                box_in_A = np.array([boxes[i][0]-boxes[i][2]/2, boxes[i][1]-boxes[i][3]/2, boxes[i][0]+boxes[i][2]/2, boxes[i][1]+boxes[i][3]/2])
+                iou_value = iou(np.concatenate((np.zeros(4), box_in_A), axis=0).reshape((-1,8)), boxes[j][0]-boxes[j][2]/2, boxes[j][1]-boxes[j][3]/2, boxes[j][0]+boxes[j][2]/2, boxes[j][1]+boxes[j][3]/2)
+                if iou_value > overlap:
+                    conf1[i][0] = 0
+                    conf1[i][1] = 0
+                    conf1[i][2] = 0
+                    conf1[i][3] = 1
+    
+    return conf2, confidence_
 
 def generate_mAP():
     #TODO: Generate mAP
