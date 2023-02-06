@@ -72,6 +72,41 @@ def relative_to_absolute(ann_confidence, ann_box, pred_box, pred_confidence, box
 
     return ann_box, pred_box
 
+def update_precision_recall(pred_confidence, pred_boxes, ann_confidence, ann_boxes, boxs_default, thres=0.9, correct_column=[], conf_column=[]):
+    pred_box = pred_boxes.copy()
+    ann_box = ann_boxes.copy()
+    # 1. Convert from relative to absolute measurement.
+    ann_box[:, 0] = boxs_default[:, 2] * ann_box[:, 0] + boxs_default[:, 0]
+    ann_box[:, 1] = boxs_default[:, 3] * ann_box[:, 1] + boxs_default[:, 1]
+    ann_box[:, 2] = boxs_default[:, 2] * np.exp(ann_box[:, 2])
+    ann_box[:, 3] = boxs_default[:, 3] * np.exp(ann_box[:, 3])
+
+    pred_box[:, 0] = boxs_default[:, 2] * pred_box[:, 0] + boxs_default[:, 0]
+    pred_box[:, 1] = boxs_default[:, 3] * pred_box[:, 1] + boxs_default[:, 1]
+    pred_box[:, 2] = boxs_default[:, 2] * np.exp(pred_box[:, 2])
+    pred_box[:, 3] = boxs_default[:, 3] * np.exp(pred_box[:, 3])
+
+    # 2. find the classes where probability is maximum
+    pred_max_val_1d_index = np.argmax(pred_confidence[:, :-1])
+    pred_i, pred_j = (pred_max_val_1d_index//3), (pred_max_val_1d_index%3)
+
+    ann_max_val_1d_index = np.argmax(ann_confidence[:, :-1])
+    ann_i, ann_j = (ann_max_val_1d_index//3), (ann_max_val_1d_index%3)
+
+    pred_box_object = np.array([pred_box[pred_i][0]-pred_box[pred_i][2]/2, pred_box[pred_i][1]-pred_box[pred_i][3]/2, pred_box[pred_i][0]+pred_box[pred_i][2]/2, pred_box[pred_i][1]+pred_box[pred_i][3]/2])
+    iou_value = iou(np.concatenate((np.zeros(4), pred_box_object), axis=0).reshape((-1,8)), ann_box[pred_i][0]-ann_box[pred_i][2]/2, ann_box[pred_i][1]-ann_box[pred_i][3]/2, ann_box[pred_i][0]+ann_box[pred_i][2]/2, ann_box[pred_i][1]+ann_box[pred_i][3]/2)
+    if pred_j == ann_j and iou_value > thres:
+        correct_column.append(1)
+        conf_column.append(pred_confidence[pred_i][pred_j])
+    else:
+        correct_column.append(0)
+        conf_column.append(pred_confidence[pred_i][pred_j])
+
+    return correct_column, conf_column
+
+def calculate_final_precision_recall(correct_column, conf_column):
+    pass
+
 if not args.test:
     dataset = COCO("data/data/train/images/", "data/data/train/annotations/", class_num, boxs_default, train = True, image_size=320)
     dataset_test = COCO("data/data/train/images/", "data/data/train/annotations/", class_num, boxs_default, train = False, image_size=320)
@@ -124,7 +159,7 @@ if not args.test:
             #save last network
             print('saving net...')
             torch.save(network.state_dict(), 'network.pth')
-
+        """
         #VALIDATION
         network.eval()
         
@@ -153,21 +188,29 @@ if not args.test:
         #optional: compute F1
         #F1score = 2*precision*recall/np.maximum(precision+recall,1e-8)
         #print(F1score)
-
+        """
 
 else:
     #TEST
+    testing = False
     dataset_test = COCO("data/data/train/images/", "data/data/train/annotations/", class_num, boxs_default, train = False, image_size=320)
-    dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=True, num_workers=0)
+    dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=0)
     # network.load_state_dict(torch.load('network.pth'))
-    network.load_state_dict(torch.load('network.pth'))
+    network.load_state_dict(torch.load('network_best.pth'))
     network.eval()
     
+    #################### MAP related code #######################
+    correct_column = []
+    conf_column = []
+    thres = 0.5
+    #############################################################
+
     for i, data in enumerate(dataloader_test, 0):
         images_, ann_box_, ann_confidence_ = data
         images = images_.cuda()
-        ann_box = ann_box_.cuda()
-        ann_confidence = ann_confidence_.cuda()
+        if not testing:
+            ann_box = ann_box_.cuda()
+            ann_confidence = ann_confidence_.cuda()
 
         pred_confidence, pred_box = network(images)
 
@@ -176,7 +219,8 @@ else:
         pred_box_ = pred_box[0].detach().cpu().numpy()
 
         ###########################
-        ann_boxes = ann_box[0].detach().cpu().numpy()
+        if not testing:
+            ann_boxes = ann_box[0].detach().cpu().numpy()
         # ann_boxes, pred_box_ = relative_to_absolute(ann_box=ann_boxes, pred_box=pred_box_, ann_confidence=ann_confidence_[0].numpy(), pred_confidence=pred_confidence_, boxs_default=boxs_default)
         ###########################
         
@@ -187,15 +231,16 @@ else:
         #you will need to submit those files for grading this assignment
 
         #################### MAP related code #######################
-        precision = []
-        recall = []
-        thres = 0.5
-        precision, recall = update_precision_recall(pred_confidence_, pred_box_, ann_confidence_.numpy(), ann_box_.numpy(), boxs_default, precision,recall,thres)
+        if not testing:
+            correct_column, conf_column = update_precision_recall(pred_confidence_, pred_box_, ann_confidence_.numpy(), ann_boxes, boxs_default, thres, correct_column, conf_column)
         #############################################################
         
-        visualize_pred("test", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_boxes, images_[0].numpy(), boxs_default, nms_confidence)
-        # visualize_pred("test", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_boxes, images_[0].numpy(), boxs_default)
+        if not testing:
+            visualize_pred("test", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_boxes, images_[0].numpy(), boxs_default, nms_confidence)
+        else:
+            visualize_pred("test", pred_confidence_, pred_box_, None, None, images_[0].numpy(), boxs_default, nms_confidence)
         cv2.waitKey(3000)
+    calculate_final_precision_recall(correct_column, conf_column)
 
 
 

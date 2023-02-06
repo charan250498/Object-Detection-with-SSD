@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import cv2
+import random
 
 def clip(value):
     if value < 0:
@@ -86,8 +87,6 @@ def iou(boxs_default, x_min,y_min,x_max,y_max):
     union = area_a + area_b - inter
     return inter/np.maximum(union,1e-8)
 
-
-
 def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,gx,gy,gw,gh):
     #input:
     #ann_box                 -- [num_of_boxes,4], ground truth bounding boxes to be updated
@@ -155,16 +154,23 @@ class COCO(torch.utils.data.Dataset):
         self.box_num = len(self.boxs_default)
         
         self.img_names = os.listdir(self.imgdir)
+        if anndir == None:
+            self.test_samples = True
+        else:
+            self.test_samples = False
         self.image_size = image_size
 
+        self.augment_data = False
         self.transform = transforms.Compose([transforms.ToTensor()])
         
         #notice:
         #you can split the dataset into 90% training and 10% validation here, by slicing self.img_names with respect to self.train
-        if self.train:
+        if self.train and anndir != None:
             self.img_names = self.img_names[:int(0.9*len(self.img_names))]
-        else:
+        elif not self.train and anndir != None:
             self.img_names = self.img_names[int(0.9*len(self.img_names)):]
+        else:
+            pass
 
     def __len__(self):
         return len(self.img_names)
@@ -181,7 +187,11 @@ class COCO(torch.utils.data.Dataset):
         ann_confidence[:,-1] = 1 #the default class for all cells is set to "background"
         
         img_name = self.imgdir+self.img_names[index]
-        ann_name = self.anndir+self.img_names[index][:-3]+"txt"
+        if not self.test_samples:
+            ann_name = self.anndir+self.img_names[index][:-3]+"txt"
+        else:
+            ann_box = torch.tensor([])
+            ann_confidence = torch.tensor([])
         
         #TODO:
         #1. prepare the image [3,320,320], by reading image "img_name" first.
@@ -194,28 +204,56 @@ class COCO(torch.utils.data.Dataset):
             image = torch.cat((image, image, image), axis=2)
             print("Channel was 1")
 
-        #2. prepare ann_box and ann_confidence, by reading txt file "ann_name" first.
-        fhand = open(ann_name, "r")
-        contents = fhand.read()
+        if self.augment_data:
+            augment_mode = np.random.randint(0, 4)
+            if augment_mode == 0:
+                #Gamma correction
+                gamma = random.randrange(3,8)/10
+                image = transforms.functional.adjust_gamma(image, gamma)
+            elif augment_mode == 1:
+                #Color Jitter
+                transform = transforms.ColorJitter(brightness=1.0, contrast=0.5, saturation=1, hue=0.1)
+                image = transform(image)
+            elif augment_mode == 2:
+                # Color Jitter 2
+                transform = transforms.ColorJitter(brightness=(0.5,1.5), contrast=(1), saturation=(0.5,1.5), hue=(-0.1,0.1))
+                image = transform(image)
+            elif augment_mode == 3:
+                # Gaussian Blur
+                transform = transforms.GaussianBlur(kernel_size=(3, 7), sigma=(0.1, 0.2))
+                image = transform(image)
+            elif augment_mode == 4:
+                # horizontal flip
+                transform = transforms.functional.hflip(image)
+            else:
+                # vertical flip
+                transform = transforms.functional.vflip(image)
 
-        contents = contents.split("\n")
-        for content in contents:
-            if len(content) < 1: # When you split the empty string after \n also get added to the list, so this if case will eliminate that case.
-                continue
-            content = content.split(" ")
+        if not self.test_samples:
+            #2. prepare ann_box and ann_confidence, by reading txt file "ann_name" first.
+            fhand = open(ann_name, "r")
+            contents = fhand.read()
 
-        # Normalized wrt to height and width
-            class_id = int(content[0])
-            gx,gy,gw,gh = [(float(content[1]) + float(content[3])/2)/width, (float(content[2]) + float(content[4])/2)/height, float(content[3])/width, float(content[4])/height]
+            contents = contents.split("\n")
+            for content in contents:
+                if len(content) < 1: # When you split the empty string after \n also get added to the list, so this if case will eliminate that case.
+                    continue
+                content = content.split(" ")
 
-        #3. use the above function "match" to update ann_box and ann_confidence, for each bounding box in "ann_name".
-            ann_box, ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,gx,gy,gw,gh)
+            # Normalized wrt to height and width
+                class_id = int(content[0])
+                gx,gy,gw,gh = [(float(content[1]) + float(content[3])/2)/width, (float(content[2]) + float(content[4])/2)/height, float(content[3])/width, float(content[4])/height]
+                if self.augment_data and augment_mode == 4:
+                    gx = 1 - gx
+                if self.augment_data and augment_mode == 5:
+                    gy = 1 - gy
+
+            #3. use the above function "match" to update ann_box and ann_confidence, for each bounding box in "ann_name".
+                ann_box, ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,gx,gy,gw,gh)
 
         #4. Data augmentation. You need to implement random cropping first. You can try adding other augmentations to get better results.
-        ##########################################
-        # CHARAN:TODO - DO DATA AUGMENTATION LATER
-        ##########################################
-        
+        #data augmentation part
+
         #to use function "match":
         #match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #where [x_min,y_min,x_max,y_max] is from the ground truth bounding box, normalized with respect to the width or height of the image.

@@ -17,11 +17,20 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
     #boxs_default    -- default bounding boxes, [num_of_boxes, 8]
 
     # We need to change the box's relative values to absolute values here.
+    try:
+        if ann_confidence == None:
+            testing = True
+        else:
+            testing = False
+    except:
+        testing = False
+
     #### COMMENTED FOR NOW AS THIS IS DONE EVEN BEFORE THE CALL TO THIS HAPPENS ####
-    ann_box[:, 0] = boxs_default[:, 2] * ann_box[:, 0] + boxs_default[:, 0]
-    ann_box[:, 1] = boxs_default[:, 3] * ann_box[:, 1] + boxs_default[:, 1]
-    ann_box[:, 2] = boxs_default[:, 2] * np.exp(ann_box[:, 2])
-    ann_box[:, 3] = boxs_default[:, 3] * np.exp(ann_box[:, 3])
+    if not testing:
+        ann_box[:, 0] = boxs_default[:, 2] * ann_box[:, 0] + boxs_default[:, 0]
+        ann_box[:, 1] = boxs_default[:, 3] * ann_box[:, 1] + boxs_default[:, 1]
+        ann_box[:, 2] = boxs_default[:, 2] * np.exp(ann_box[:, 2])
+        ann_box[:, 3] = boxs_default[:, 3] * np.exp(ann_box[:, 3])
 
     pred_box[:, 0] = boxs_default[:, 2] * pred_box[:, 0] + boxs_default[:, 0]
     pred_box[:, 1] = boxs_default[:, 3] * pred_box[:, 1] + boxs_default[:, 1]
@@ -56,37 +65,38 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
         pass
     
     #draw ground truth
-    for i in range(len(ann_confidence)):
-        for j in range(class_num):
-            if ann_confidence[i,j]>0.5: #if the network/ground_truth has high confidence on cell[i] with class[j] ######################## Changed from 0.5 to 0.9
-                #TODO:
-                #image1: draw ground truth bounding boxes on image1
-                #image2: draw ground truth "default" boxes on image2 (to show that you have assigned the object to the correct cell/cells)
-                
-                #you can use cv2.rectangle as follows:
-                #start_point = (x1, y1) #top left corner, x1<x2, y1<y2
-                #end_point = (x2, y2) #bottom right corner
-                #color = colors[j] #use red green blue to represent different classes
-                #thickness = 2
-                #cv2.rectangle(image?, start_point, end_point, color, thickness)
-                start_point = (int((ann_box[i][0]-(ann_box[i][2]/2)) * 320), int((ann_box[i][1]-(ann_box[i][3]/2)) * 320))
-                end_point = (int((ann_box[i][0]+(ann_box[i][2]/2)) * 320), int((ann_box[i][1]+(ann_box[i][3]/2)) * 320))
-                color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
-                thickness = 2
-                cv2.rectangle(image1, start_point, end_point, color, thickness)
+    if not testing:
+        for i in range(len(ann_confidence)):
+            for j in range(class_num):
+                if ann_confidence[i,j]>0.5: #if the network/ground_truth has high confidence on cell[i] with class[j] ######################## Changed from 0.5 to 0.9
+                    #TODO:
+                    #image1: draw ground truth bounding boxes on image1
+                    #image2: draw ground truth "default" boxes on image2 (to show that you have assigned the object to the correct cell/cells)
+                    
+                    #you can use cv2.rectangle as follows:
+                    #start_point = (x1, y1) #top left corner, x1<x2, y1<y2
+                    #end_point = (x2, y2) #bottom right corner
+                    #color = colors[j] #use red green blue to represent different classes
+                    #thickness = 2
+                    #cv2.rectangle(image?, start_point, end_point, color, thickness)
+                    start_point = (int((ann_box[i][0]-(ann_box[i][2]/2)) * 320), int((ann_box[i][1]-(ann_box[i][3]/2)) * 320))
+                    end_point = (int((ann_box[i][0]+(ann_box[i][2]/2)) * 320), int((ann_box[i][1]+(ann_box[i][3]/2)) * 320))
+                    color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
+                    thickness = 2
+                    cv2.rectangle(image1, start_point, end_point, color, thickness)
 
 
-                start_point = (int((boxs_default[i][0]-(boxs_default[i][2]/2)) * 320), int((boxs_default[i][1]-(boxs_default[i][3]/2)) * 320))
-                end_point = (int((boxs_default[i][0]+(boxs_default[i][2]/2)) * 320), int((boxs_default[i][1]+(boxs_default[i][3]/2)) * 320))
-                color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
-                thickness = 2
-                cv2.rectangle(image2, start_point, end_point, color, thickness)
+                    start_point = (int((boxs_default[i][0]-(boxs_default[i][2]/2)) * 320), int((boxs_default[i][1]-(boxs_default[i][3]/2)) * 320))
+                    end_point = (int((boxs_default[i][0]+(boxs_default[i][2]/2)) * 320), int((boxs_default[i][1]+(boxs_default[i][3]/2)) * 320))
+                    color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
+                    thickness = 2
+                    cv2.rectangle(image2, start_point, end_point, color, thickness)
 
     
     #pred
     for i in range(len(pred_confidence)):
         for j in range(class_num):
-            if nms_confidence[i,j]>0.5:
+            if nms_confidence[i,j]>0.3:
                 #TODO:
                 #image3: draw network-predicted bounding boxes on image3
                 #image4: draw network-predicted "default" boxes on image4 (to show which cell does your network think that contains an object)
@@ -95,8 +105,9 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
                 color = colors[j]
                 thickness = 2
                 cv2.rectangle(image3, start_point, end_point, color, thickness)
+                print("%d %d %d %d %d"%(j, start_point[0], start_point[1], end_point[0] - start_point[0], end_point[1] - start_point[1]))
             
-            if pred_confidence[i,j]>0.5:
+            if pred_confidence[i,j]>0.3:
                 start_point = (int((default_boxes[i][0]-(default_boxes[i][2]/2)) * 320), int((default_boxes[i][1]-(default_boxes[i][3]/2)) * 320))
                 end_point = (int((default_boxes[i][0]+(default_boxes[i][2]/2)) * 320), int((default_boxes[i][1]+(default_boxes[i][3]/2)) * 320))
                 color = colors[j] # CHARAN : TODO needs to be changed later.#use red green blue to represent different classes
